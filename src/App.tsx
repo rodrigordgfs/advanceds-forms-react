@@ -2,8 +2,13 @@ import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { supabase } from "./lib/supabase";
 
 const createUserFormSchema = z.object({
+  avatar: z
+    .instanceof(FileList)
+    .transform((v) => v.item(0)!)
+    .refine((v) => v.size < 5000000, "O arquivo deve ter no máximo 5MB"),
   name: z
     .string()
     .nonempty("O nome é obrigatório")
@@ -33,7 +38,10 @@ const createUserFormSchema = z.object({
           .max(100, "O conhecimento deve ser menor que 100"),
       })
     )
-    .min(2, "É necessário informar ao menos 2 tecnologia"),
+    .min(2, "É necessário informar ao menos 2 tecnologia")
+    .refine((v) => {
+      return v.some((v) => v.knowledge > 50);
+    }, "É necessário informar ao menos uma tecnologia com conhecimento maior que 50"),
 });
 
 type CreateUserFormData = z.infer<typeof createUserFormSchema>;
@@ -54,7 +62,10 @@ export default function App() {
     name: "techs",
   });
 
-  function createUser(data: any) {
+  async function createUser(data: any) {
+    await supabase.storage
+      .from("advanceds-forms-react")
+      .upload(data.avatar.name, data.avatar);
     setOutput(JSON.stringify(data, null, 2));
   }
 
@@ -68,6 +79,21 @@ export default function App() {
         className="flex flex-col gap-4 w-full max-w-xs"
         onSubmit={handleSubmit(createUser)}
       >
+        <div className="flex flex-col gap-1">
+          <label htmlFor="avatar">Avatar</label>
+          <input
+            className="border bg-zinc-800 border-zinc-600 shadow-sm rounded h-10 px-3"
+            type="file"
+            accept="image/*"
+            {...register("avatar")}
+          />
+          {errors.avatar && (
+            <span className="text-xs text-red-500">
+              {errors.avatar.message}
+            </span>
+          )}
+        </div>
+
         <div className="flex flex-col gap-1">
           <label htmlFor="name">Nome</label>
           <input
